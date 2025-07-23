@@ -19,7 +19,7 @@ use clap::Parser;
 - 命令行参数简洁易用
 
 作者: TC999
-版本: 0.0.0
+版本: 0.1.0
 项目地址: https://github.com/TC999/wget-rs
 "#
 )]
