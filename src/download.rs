@@ -1,68 +1,77 @@
-use std::fs::File;
-use std::io::{self, Write, Read};
-use std::path::Path;
-use reqwest::blocking::get;
-use reqwest::header::{CONTENT_DISPOSITION, CONTENT_LENGTH, HeaderMap};
-use regex::Regex;
+use std::fs::{File, OpenOptions};
+use std::io::{Seek, SeekFrom, Write, Read};
+use std::sync::{Arc, Mutex};
+
+use reqwest::blocking::Client;
+use reqwest::header::{CONTENT_LENGTH, RANGE, ACCEPT_RANGES};
+use rayon::prelude::*;
 use indicatif::{ProgressBar, ProgressStyle};
 
-fn extract_filename_from_headers(headers: &HeaderMap) -> Option<String> {
-    if let Some(disposition) = headers.get(CONTENT_DISPOSITION) {
-        let disposition_str = disposition.to_str().ok()?;
-        let re = Regex::new(r#"filename\*?=(?:UTF-8'')?["']?([^;"']+)["']?"#).unwrap();
-        if let Some(cap) = re.captures(disposition_str) {
-            return Some(cap[1].to_string());
-        }
-    }
-    None
-}
+const CHUNK_SIZE: u64 = 4 * 1024 * 1024; // 4MB
 
-fn extract_filename_from_url(url: &str) -> String {
-    url.split('/')
-        .last()
-        .filter(|s| !s.is_empty())
-        .unwrap_or("output")
-        .to_string()
-}
+/// 多线程下载文件
+pub fn download_file_multithread(url: &str, output: &str, threads: usize) -> Result<(), Box<dyn std::error::Error>> {
+    let client = Client::new();
 
-pub fn download_file(url: &str, output: &Option<String>) -> Result<(), Box<dyn std::error::Error>> {
-    let mut response = get(url)?;
-    let headers = response.headers().clone();
-
-    let filename = match output {
-        Some(name) => name.clone(),
-        None => extract_filename_from_headers(&headers)
-            .or_else(|| Some(extract_filename_from_url(url)))
-            .unwrap(),
-    };
-
-    let total_size = headers
+    // 获取文件大小与是否支持分片
+    let head = client.head(url).send()?;
+    let total_size = head
+        .headers()
         .get(CONTENT_LENGTH)
-        .and_then(|len| len.to_str().ok())
-        .and_then(|len| len.parse().ok())
-        .unwrap_or(0);
+        .ok_or("无法获取文件大小")?
+        .to_str()?
+        .parse::<u64>()?;
+    let accept_ranges = head
+        .headers()
+        .get(ACCEPT_RANGES)
+        .map(|v| v == "bytes")
+        .unwrap_or(false);
+
+    if !accept_ranges {
+        return Err("服务器不支持多线程下载".into());
+    }
+
+    // 预分配目标文件
+    let file = File::create(output)?;
+    file.set_len(total_size)?;
+
+    let arc_file = Arc::new(Mutex::new(
+        OpenOptions::new().write(true).read(true).open(output)?
+    ));
 
     let pb = ProgressBar::new(total_size);
-    pb.set_style(ProgressStyle::default_bar()
-        .template("{bar:40.cyan/blue} {bytes}/{total_bytes} {percent}% {eta}")
-        .unwrap()
-        .progress_chars("##-"));
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("{bar:40.cyan/blue} {bytes}/{total_bytes} {percent}% {eta}")
+            .unwrap()
+            .progress_chars("##-"),
+    );
 
-    let mut dest = File::create(&filename)?;
-    let mut buffer = [0; 8192];
-    let mut downloaded: u64 = 0;
-
-    loop {
-        let n = response.read(&mut buffer)?;
-        if n == 0 {
-            break;
-        }
-        dest.write_all(&buffer[..n])?;
-        downloaded += n as u64;
-        pb.set_position(downloaded);
+    // 生成所有分片
+    let mut ranges = Vec::new();
+    let mut start = 0;
+    while start < total_size {
+        let end = std::cmp::min(start + CHUNK_SIZE - 1, total_size - 1);
+        ranges.push((start, end));
+        start += CHUNK_SIZE;
     }
 
+    // 多线程并行下载
+    ranges.par_iter().for_each(|&(start, end)| {
+        let mut resp = client
+            .get(url)
+            .header(RANGE, format!("bytes={}-{}", start, end))
+            .send()
+            .expect("下载分片失败");
+        let mut buf = Vec::new();
+        resp.read_to_end(&mut buf).expect("读取分片失败");
+        let mut f = arc_file.lock().unwrap();
+        f.seek(SeekFrom::Start(start)).expect("定位失败");
+        f.write_all(&buf).expect("写入分片失败");
+        pb.inc((end - start + 1) as u64);
+    });
+
     pb.finish_with_message("下载完成!");
-    println!("文件保存为: {}", filename);
+    println!("文件保存为: {}", output);
     Ok(())
 }
