@@ -9,4 +9,3 @@ regex = "1.11.1"
 reqwest = { version = "0.12", features = ["blocking", "json"] }
 tokio = { version = "1", features = ["full"] } # 如需异步下载
 indicatif = "0.17"
-rayon = "1.10"
