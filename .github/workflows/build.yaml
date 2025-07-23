@@ -5,7 +5,7 @@ on:
 
 jobs:
   build-windows:
-    runs-on: windows-2019
+    runs-on: windows-2022
     strategy:
       matrix:
         target:
@@ -40,9 +40,8 @@ jobs:
       matrix:
         target:
           - x86_64-unknown-linux-gnu
-          - x86_64-unknown-linux-gnux32
+          #- x86_64-unknown-linux-gnux32
           - x86_64-unknown-linux-musl
-          - x86_64-unknown-linux-ohos
     name: Linux-${{ matrix.target }}
     steps:
       - name: 检出代码
