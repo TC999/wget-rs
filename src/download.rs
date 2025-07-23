@@ -6,6 +6,7 @@ use reqwest::blocking::Client;
 use reqwest::header::{CONTENT_DISPOSITION, CONTENT_LENGTH, RANGE, ACCEPT_RANGES, CONTENT_TYPE, HeaderMap};
 use regex::Regex;
 use indicatif::{ProgressBar, ProgressStyle};
+use std::time::Duration;
 
 fn validate_response(response: &reqwest::blocking::Response, expected_filename: &str) -> Result<(), Box<dyn std::error::Error>> {
     let status = response.status();
@@ -138,21 +139,13 @@ pub fn download_file(url: &str, output: &Option<String>, threads: u32) -> Result
     let client = create_client()?;
     let response = client.head(url).send()?;
 
-    let client = create_client()?;
-    let response = client.head(url).send()?;
-
-    // 新增：显示状态码
     let status = response.status();
     println!("服务器响应状态码: {} {}", status.as_u16(), status.canonical_reason().unwrap_or(""));
 
     if !status.is_success() {
         return Err(format!("HTTP error: {} - {}", status.as_u16(), status.canonical_reason().unwrap_or("Unknown")).into());
     }
-    
-    if !response.status().is_success() {
-        return Err(format!("HTTP error: {} - {}", response.status().as_u16(), response.status().canonical_reason().unwrap_or("Unknown")).into());
-    }
-    
+
     let headers = response.headers().clone();
 
     let filename = match output {
@@ -168,6 +161,18 @@ pub fn download_file(url: &str, output: &Option<String>, threads: u32) -> Result
         .and_then(|len| len.parse().ok())
         .unwrap_or(0);
 
+    // 初始化进度条，并提前显示
+    let pb = Arc::new(Mutex::new(ProgressBar::new(total_size)));
+    {
+        let pb_guard = pb.lock().unwrap();
+        pb_guard.set_style(ProgressStyle::default_bar()
+            .template("{bar:40.cyan/blue} {bytes}/{total_bytes} {percent}% {eta}")
+            .unwrap()
+            .progress_chars("##-"));
+        pb_guard.enable_steady_tick(Duration::from_millis(100)); // 让进度条提前刷新
+    }
+    println!("正在准备多线程下载，请稍候...");
+
     // 如果文件大小未知或服务器不支持范围请求，使用单线程下载
     if total_size == 0 || !supports_range_requests(&headers) || threads == 1 {
         println!("使用单线程下载...");
@@ -176,23 +181,14 @@ pub fn download_file(url: &str, output: &Option<String>, threads: u32) -> Result
 
     println!("使用 {} 线程下载，文件大小: {} 字节", threads, total_size);
 
-    let pb = Arc::new(Mutex::new(ProgressBar::new(total_size)));
-    {
-        let pb_guard = pb.lock().unwrap();
-        pb_guard.set_style(ProgressStyle::default_bar()
-            .template("{bar:40.cyan/blue} {bytes}/{total_bytes} {percent}% {eta}")
-            .unwrap()
-            .progress_chars("##-"));
-    }
-
     let chunk_size = total_size / threads as u64;
-    
+
     // If chunk size is too small (less than 1 byte per thread), use single thread  
     if chunk_size == 0 {
         println!("文件太小，使用单线程下载...");
         return download_single_threaded(&client, url, &filename, total_size);
     }
-    
+
     let mut handles = vec![];
     let mut chunk_data = vec![];
 
