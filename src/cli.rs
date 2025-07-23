@@ -14,6 +14,14 @@ pub struct Args {
     pub threads: u32,
 }
 
+/// Parses command-line arguments and returns them as an `Args` struct.
+///
+/// # Examples
+///
+/// ```
+/// let args = parse_args();
+/// println!("URL: {}", args.url);
+/// ```
 pub fn parse_args() -> Args {
     Args::parse()
 }
