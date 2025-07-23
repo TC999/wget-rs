@@ -6,13 +6,13 @@ use clap::Parser;
     author = "TC999 <your_email@example.com>",
     version,
     about = "Rust 实现的多线程命令行下载工具，支持断点续传、哈希校验等功能。",
-    long_about = r#"wget-rs
+    after_help = r#"wget-rs
 ========
 
 这是一个现代化的命令行下载器，采用 Rust 编写，具备以下特性：
 
 - 支持多线程高速下载（可指定线程数）
-- 支持断点续传（服务器支持时自动启用）
+- 支持断点续传（服务器支持时自动启用）（敬请期待）
 - 支持自动推断文件名
 - 支持下载完成后文件哈希计算与校验（MD5/SHA1/SHA256/CRC32）
 - 兼容 http/https

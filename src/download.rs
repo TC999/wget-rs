@@ -72,6 +72,13 @@ fn download_chunk(
     chunk_data: Arc<Mutex<Vec<u8>>>,
     progress: Arc<Mutex<ProgressBar>>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let chunk_size = end - start + 1;
+    const MAX_CHUNK_SIZE: u64 = 100 * 1024 * 1024; // 100MB limit per chunk
+    
+    if chunk_size > MAX_CHUNK_SIZE {
+        return Err(format!("Chunk size {} exceeds maximum allowed size", chunk_size).into());
+    }
+
     let range_header = format!("bytes={}-{}", start, end);
     let response = client
         .get(url)
