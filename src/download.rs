@@ -135,6 +135,13 @@ pub fn download_file(url: &str, output: &Option<String>, threads: u32) -> Result
     }
 
     let chunk_size = total_size / threads as u64;
+    
+    // If chunk size is too small (less than 1 byte per thread), use single thread  
+    if chunk_size == 0 {
+        println!("文件太小，使用单线程下载...");
+        return download_single_threaded(url, &filename, total_size);
+    }
+    
     let mut handles = vec![];
     let mut chunk_data = vec![];
 
@@ -187,4 +194,88 @@ pub fn download_file(url: &str, output: &Option<String>, threads: u32) -> Result
     }
     println!("文件保存为: {}", filename);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_supports_range_requests() {
+        let mut headers = HeaderMap::new();
+        
+        // Test when Accept-Ranges is not present
+        assert!(!supports_range_requests(&headers));
+        
+        // Test when Accept-Ranges is bytes
+        headers.insert(ACCEPT_RANGES, "bytes".parse().unwrap());
+        assert!(supports_range_requests(&headers));
+        
+        // Test when Accept-Ranges is none
+        headers.insert(ACCEPT_RANGES, "none".parse().unwrap());
+        assert!(!supports_range_requests(&headers));
+    }
+
+    #[test]
+    fn test_extract_filename_from_url() {
+        assert_eq!(extract_filename_from_url("https://example.com/file.txt"), "file.txt");
+        assert_eq!(extract_filename_from_url("https://example.com/path/to/file.zip"), "file.zip");
+        assert_eq!(extract_filename_from_url("https://example.com/"), "output");
+        assert_eq!(extract_filename_from_url("https://example.com"), "example.com");
+    }
+
+    #[test]
+    fn test_extract_filename_from_headers() {
+        let mut headers = HeaderMap::new();
+        
+        // Test when Content-Disposition is not present
+        assert!(extract_filename_from_headers(&headers).is_none());
+        
+        // Test with standard filename
+        headers.insert(CONTENT_DISPOSITION, "attachment; filename=\"test.txt\"".parse().unwrap());
+        assert_eq!(extract_filename_from_headers(&headers), Some("test.txt".to_string()));
+        
+        // Test with filename*
+        headers.insert(CONTENT_DISPOSITION, "attachment; filename*=UTF-8''test%20file.txt".parse().unwrap());
+        assert_eq!(extract_filename_from_headers(&headers), Some("test%20file.txt".to_string()));
+    }
+
+    #[test] 
+    fn test_chunk_calculation() {
+        let total_size = 1000u64;
+        let threads = 4u32;
+        let chunk_size = total_size / threads as u64;
+        
+        // Test chunk boundaries
+        for i in 0..threads {
+            let start = i as u64 * chunk_size;
+            let end = if i == threads - 1 {
+                total_size - 1
+            } else {
+                (i + 1) as u64 * chunk_size - 1
+            };
+            
+            // Verify no gaps or overlaps
+            if i > 0 {
+                let prev_end = (i as u64 * chunk_size) - 1;
+                assert_eq!(start, prev_end + 1);
+            }
+            
+            // Verify last chunk goes to the end
+            if i == threads - 1 {
+                assert_eq!(end, total_size - 1);
+            }
+        }
+    }
+
+    #[test]
+    fn test_small_file_edge_case() {
+        // Test that very small files would result in chunk_size = 0
+        let total_size = 10u64;
+        let threads = 32u32;
+        let chunk_size = total_size / threads as u64;
+        
+        // This should be 0, which means we should fall back to single-threaded
+        assert_eq!(chunk_size, 0);
+    }
 }

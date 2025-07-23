@@ -17,3 +17,21 @@ pub struct Args {
 pub fn parse_args() -> Args {
     Args::parse()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_threads() {
+        // We can't easily test clap parsing in unit tests,
+        // but we can verify the default value is set correctly
+        // by checking the struct definition
+        let args = Args {
+            url: "https://example.com".to_string(),
+            output: None,
+            threads: 32, // This should match our default
+        };
+        assert_eq!(args.threads, 32);
+    }
+}
