@@ -18,6 +18,19 @@ fn extract_filename_from_headers(headers: &HeaderMap) -> Option<String> {
     None
 }
 
+/// Extracts the filename from the last non-empty segment of a URL path.
+///
+/// Returns `"output"` if the URL does not contain a valid filename segment.
+///
+/// # Examples
+///
+/// ```
+/// let filename = extract_filename_from_url("https://example.com/files/report.pdf");
+/// assert_eq!(filename, "report.pdf");
+///
+/// let filename = extract_filename_from_url("https://example.com/files/");
+/// assert_eq!(filename, "output");
+/// ```
 fn extract_filename_from_url(url: &str) -> String {
     url.split('/')
         .last()
@@ -26,6 +39,22 @@ fn extract_filename_from_url(url: &str) -> String {
         .to_string()
 }
 
+/// Determines if the server supports HTTP range requests by checking the `Accept-Ranges` header.
+///
+/// Returns `true` if the header is present and set to `"bytes"`, indicating support for partial content requests; otherwise, returns `false`.
+///
+/// # Examples
+///
+/// ```
+/// use reqwest::header::{HeaderMap, ACCEPT_RANGES};
+///
+/// let mut headers = HeaderMap::new();
+/// headers.insert(ACCEPT_RANGES, "bytes".parse().unwrap());
+/// assert!(supports_range_requests(&headers));
+///
+/// headers.insert(ACCEPT_RANGES, "none".parse().unwrap());
+/// assert!(!supports_range_requests(&headers));
+/// ```
 fn supports_range_requests(headers: &HeaderMap) -> bool {
     headers.get(ACCEPT_RANGES)
         .and_then(|v| v.to_str().ok())
@@ -33,6 +62,26 @@ fn supports_range_requests(headers: &HeaderMap) -> bool {
         .unwrap_or(false)
 }
 
+/// Downloads a specific byte range of a file from a URL and stores it in a shared buffer.
+///
+/// Sends an HTTP GET request with a `Range` header to download bytes from `start` to `end` (inclusive).
+/// The downloaded data is written into the provided `chunk_data` buffer, and the progress bar is updated accordingly.
+///
+/// # Returns
+///
+/// Returns `Ok(())` if the chunk is downloaded and stored successfully, or an error if the HTTP request fails or the response cannot be read.
+///
+/// # Examples
+///
+/// ```
+/// // Example usage within a multi-threaded download context:
+/// let client = reqwest::blocking::Client::new();
+/// let url = "https://example.com/file";
+/// let chunk_data = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+/// let progress = std::sync::Arc::new(std::sync::Mutex::new(indicatif::ProgressBar::new(100)));
+/// let result = download_chunk(&client, url, 0, 99, chunk_data.clone(), progress.clone());
+/// assert!(result.is_ok());
+/// ```
 fn download_chunk(
     client: &Client,
     url: &str,
@@ -68,6 +117,15 @@ fn download_chunk(
     Ok(())
 }
 
+/// Downloads a file from the specified URL in a single thread and saves it to the given filename.
+///
+/// Reads the response in chunks, writes to the output file, and updates a progress bar until the entire file is downloaded.
+///
+/// # Examples
+///
+/// ```
+/// download_single_threaded("https://example.com/file.zip", "file.zip", 1024 * 1024)?;
+/// ```
 fn download_single_threaded(
     url: &str,
     filename: &str,
@@ -99,6 +157,26 @@ fn download_single_threaded(
     Ok(())
 }
 
+/// Downloads a file from the specified URL using multiple threads if supported.
+///
+/// Attempts to download the file concurrently by dividing it into chunks and downloading each chunk in a separate thread, provided the server supports HTTP range requests and the file size is known. Falls back to single-threaded download if range requests are unsupported, the file size is unknown, or only one thread is requested. The downloaded file is saved to the specified output filename or a name derived from the HTTP headers or URL.
+///
+/// # Parameters
+///
+/// - `url`: The URL of the file to download.
+/// - `output`: Optional output filename. If `None`, the filename is determined from HTTP headers or the URL.
+/// - `threads`: The number of threads to use for downloading. If set to 1, or if multi-threaded download is not possible, a single-threaded download is performed.
+///
+/// # Returns
+///
+/// Returns `Ok(())` if the download succeeds, or an error if the download fails.
+///
+/// # Examples
+///
+/// ```
+/// let url = "https://example.com/file.zip";
+/// download_file(url, &None, 4).unwrap();
+/// ```
 pub fn download_file(url: &str, output: &Option<String>, threads: u32) -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
     let response = client.head(url).send()?;
