@@ -3,6 +3,9 @@ name: 编译
 on:
   workflow_dispatch:
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   build-windows:
     runs-on: windows-2022
