@@ -2,10 +2,40 @@ use std::fs::File;
 use std::io::{Write, Read};
 use std::thread;
 use std::sync::{Arc, Mutex};
-use reqwest::blocking::{get, Client};
-use reqwest::header::{CONTENT_DISPOSITION, CONTENT_LENGTH, RANGE, ACCEPT_RANGES, HeaderMap};
+use reqwest::blocking::Client;
+use reqwest::header::{CONTENT_DISPOSITION, CONTENT_LENGTH, RANGE, ACCEPT_RANGES, CONTENT_TYPE, HeaderMap};
 use regex::Regex;
 use indicatif::{ProgressBar, ProgressStyle};
+
+fn validate_response(response: &reqwest::blocking::Response, expected_filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let status = response.status();
+    
+    // Check for HTTP errors
+    if !status.is_success() {
+        return Err(format!("HTTP error: {} - {}", status.as_u16(), status.canonical_reason().unwrap_or("Unknown")).into());
+    }
+    
+    // Check if we're getting HTML instead of the expected file
+    if let Some(content_type) = response.headers().get(CONTENT_TYPE) {
+        if let Ok(content_type_str) = content_type.to_str() {
+            // If the expected file is not an HTML file but we're getting HTML, this might be an error page
+            if content_type_str.starts_with("text/html") && !expected_filename.ends_with(".html") && !expected_filename.ends_with(".htm") {
+                return Err("服务器返回了 HTML 页面而不是预期的文件，可能是 403 或其他错误页面".into());
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+fn create_client() -> Result<Client, Box<dyn std::error::Error>> {
+    let user_agent = format!("Wget/{} ({})", env!("CARGO_PKG_VERSION"), std::env::consts::OS);
+    Client::builder()
+        .user_agent(user_agent)
+        .redirect(reqwest::redirect::Policy::limited(10))
+        .build()
+        .map_err(|e| e.into())
+}
 
 fn extract_filename_from_headers(headers: &HeaderMap) -> Option<String> {
     if let Some(disposition) = headers.get(CONTENT_DISPOSITION) {
@@ -48,7 +78,7 @@ fn download_chunk(
         .send()?;
 
     if !response.status().is_success() {
-        return Err(format!("HTTP error: {}", response.status()).into());
+        return Err(format!("HTTP error: {} - {}", response.status().as_u16(), response.status().canonical_reason().unwrap_or("Unknown")).into());
     }
 
     let mut buffer = Vec::new();
@@ -69,11 +99,15 @@ fn download_chunk(
 }
 
 fn download_single_threaded(
+    client: &Client,
     url: &str,
     filename: &str,
     total_size: u64,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut response = get(url)?;
+    let response = client.get(url).send()?;
+    
+    // Validate the response before proceeding
+    validate_response(&response, filename)?;
     
     let pb = ProgressBar::new(total_size);
     pb.set_style(ProgressStyle::default_bar()
@@ -84,9 +118,10 @@ fn download_single_threaded(
     let mut dest = File::create(filename)?;
     let mut buffer = [0; 8192];
     let mut downloaded: u64 = 0;
+    let mut response_reader = response;
 
     loop {
-        let n = response.read(&mut buffer)?;
+        let n = response_reader.read(&mut buffer)?;
         if n == 0 {
             break;
         }
@@ -100,8 +135,13 @@ fn download_single_threaded(
 }
 
 pub fn download_file(url: &str, output: &Option<String>, threads: u32) -> Result<(), Box<dyn std::error::Error>> {
-    let client = Client::new();
+    let client = create_client()?;
     let response = client.head(url).send()?;
+    
+    if !response.status().is_success() {
+        return Err(format!("HTTP error: {} - {}", response.status().as_u16(), response.status().canonical_reason().unwrap_or("Unknown")).into());
+    }
+    
     let headers = response.headers().clone();
 
     let filename = match output {
@@ -120,7 +160,7 @@ pub fn download_file(url: &str, output: &Option<String>, threads: u32) -> Result
     // 如果文件大小未知或服务器不支持范围请求，使用单线程下载
     if total_size == 0 || !supports_range_requests(&headers) || threads == 1 {
         println!("使用单线程下载...");
-        return download_single_threaded(url, &filename, total_size);
+        return download_single_threaded(&client, url, &filename, total_size);
     }
 
     println!("使用 {} 线程下载，文件大小: {} 字节", threads, total_size);
@@ -139,7 +179,7 @@ pub fn download_file(url: &str, output: &Option<String>, threads: u32) -> Result
     // If chunk size is too small (less than 1 byte per thread), use single thread  
     if chunk_size == 0 {
         println!("文件太小，使用单线程下载...");
-        return download_single_threaded(url, &filename, total_size);
+        return download_single_threaded(&client, url, &filename, total_size);
     }
     
     let mut handles = vec![];
@@ -277,5 +317,25 @@ mod tests {
         
         // This should be 0, which means we should fall back to single-threaded
         assert_eq!(chunk_size, 0);
+    }
+
+    #[test]
+    fn test_create_client() {
+        // Test that the client is created successfully with proper user agent
+        let client = create_client();
+        assert!(client.is_ok());
+        
+        // We can't easily test the exact user agent without making a request,
+        // but we can verify the client was created successfully
+    }
+
+    #[test]
+    fn test_validate_response_content_type() {
+        // This is a more complex test that would require mocking a response
+        // For now, we'll just test that the function exists and can be called
+        // In a real scenario, we'd mock responses with different content types
+        
+        // Test passes if the function compiles and can be referenced
+        let _fn_ref = validate_response;
     }
 }
