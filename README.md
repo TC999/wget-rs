@@ -14,6 +14,7 @@
 - 支持自定义请求头
 - 下载进度显示
 - 跨平台支持（Windows/Linux/macOS）
+- **文件哈希验证**：支持计算和验证 MD5、SHA1、SHA256、CRC32 哈希值
 
 ## 安装方法
 
@@ -42,7 +43,17 @@ wget-rs [选项] <URL>
 ### 示例
 
 ```bash
+# 基本下载
 wget-rs https://example.com/file.zip
+
+# 计算下载文件的所有哈希值
+wget-rs https://example.com/file.zip --hash
+
+# 验证下载文件的哈希值（自动检测哈希类型）
+wget-rs https://example.com/file.zip --verify-hash d41d8cd98f00b204e9800998ecf8427e
+
+# 指定输出文件名并验证 SHA256 哈希
+wget-rs https://example.com/file.zip -o myfile.zip --verify-hash e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 ```
 
 ### 常用选项
@@ -50,6 +61,8 @@ wget-rs https://example.com/file.zip
 - `-O, --output <文件名>` 指定输出文件名
 - `-c, --continue`      断点续传
 - `-h, --help`          查看帮助信息
+- `--hash`              下载完成后计算所有哈希值（MD5、SHA1、SHA256、CRC32）
+- `--verify-hash <哈希值>` 验证下载文件的哈希值（支持 MD5、SHA1、SHA256、CRC32）
 
 ## 贡献指南
 
