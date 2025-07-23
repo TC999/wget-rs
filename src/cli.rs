@@ -9,6 +9,9 @@ pub struct Args {
     /// 输出文件名（可选，默认从服务器获取或URL推断）
     #[arg(short, long)]
     pub output: Option<String>,
+    /// 线程数（默认32）
+    #[arg(short, long, default_value = "32")]
+    pub threads: u32,
 }
 
 pub fn parse_args() -> Args {
