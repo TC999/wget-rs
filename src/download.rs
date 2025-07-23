@@ -137,6 +137,17 @@ fn download_single_threaded(
 pub fn download_file(url: &str, output: &Option<String>, threads: u32) -> Result<(), Box<dyn std::error::Error>> {
     let client = create_client()?;
     let response = client.head(url).send()?;
+
+    let client = create_client()?;
+    let response = client.head(url).send()?;
+
+    // 新增：显示状态码
+    let status = response.status();
+    println!("服务器响应状态码: {} {}", status.as_u16(), status.canonical_reason().unwrap_or(""));
+
+    if !status.is_success() {
+        return Err(format!("HTTP error: {} - {}", status.as_u16(), status.canonical_reason().unwrap_or("Unknown")).into());
+    }
     
     if !response.status().is_success() {
         return Err(format!("HTTP error: {} - {}", response.status().as_u16(), response.status().canonical_reason().unwrap_or("Unknown")).into());
