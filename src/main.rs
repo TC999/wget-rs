@@ -6,7 +6,7 @@ use download::download_file;
 
 fn main() {
     let args = parse_args();
-    if let Err(e) = download_file(&args.url, &args.output) {
+    if let Err(e) = download_file(&args.url, &args.output, args.threads) {
         eprintln!("下载失败: {}", e);
     }
 }
