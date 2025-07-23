@@ -6,9 +6,9 @@ use clap::Parser;
 pub struct Args {
     /// 要下载的 URL
     pub url: String,
-    /// 输出文件名
-    #[arg(short, long, default_value = "output")]
-    pub output: String,
+    /// 输出文件名（可选，默认从服务器获取或URL推断）
+    #[arg(short, long)]
+    pub output: Option<String>,
 }
 
 pub fn parse_args() -> Args {
