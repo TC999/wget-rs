@@ -15,7 +15,7 @@ fn main() {
     }
     
     // 执行下载
-    if let Err(e) = download_file(&args.url, &args.output, args.threads) {
+    if let Err(e) = download_file(&args.url, &args.output, args.threads, args.continue_) {
         eprintln!("下载失败: {}", e);
         std::process::exit(1);
     }
