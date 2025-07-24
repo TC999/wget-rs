@@ -11,20 +11,11 @@ use std::time::Duration;
 fn validate_response(response: &reqwest::blocking::Response, expected_filename: &str) -> Result<(), Box<dyn std::error::Error>> {
     let status = response.status();
     
-    // Check for HTTP errors
+    // 只检查 HTTP 状态码
     if !status.is_success() {
         return Err(format!("HTTP error: {} - {}", status.as_u16(), status.canonical_reason().unwrap_or("Unknown")).into());
     }
-    
-    // Check if we're getting HTML instead of the expected file
-    if let Some(content_type) = response.headers().get(CONTENT_TYPE) {
-        if let Ok(content_type_str) = content_type.to_str() {
-            // If the expected file is not an HTML file but we're getting HTML, this might be an error page
-            if content_type_str.starts_with("text/html") && !expected_filename.ends_with(".html") && !expected_filename.ends_with(".htm") {
-                return Err("服务器返回了 HTML 页面而不是预期的文件，可能是 403 或其他错误页面".into());
-            }
-        }
-    }
+    // 不再对内容类型做强制检查
     
     Ok(())
 }
