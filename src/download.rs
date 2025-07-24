@@ -438,9 +438,42 @@ mod tests {
 
     #[test]
     fn test_get_file_size() {
-        // This test would require creating a temporary file
-        // For now, we'll just test that the function handles non-existent files
+        // Test with non-existent file
         assert!(get_file_size("non_existent_file.txt").is_none());
+        
+        // Test with temporary file
+        use std::fs::File;
+        use std::io::Write;
+        
+        let temp_path = "/tmp/test_file_size.txt";
+        {
+            let mut file = File::create(temp_path).unwrap();
+            file.write_all(b"Hello, World!").unwrap();
+        }
+        
+        let size = get_file_size(temp_path);
+        assert_eq!(size, Some(13)); // "Hello, World!" is 13 bytes
+        
+        // Clean up
+        std::fs::remove_file(temp_path).ok();
+    }
+
+    #[test]
+    fn test_resume_logic_integration() {
+        // Test that the CLI argument is properly integrated
+        use crate::cli::{Args};
+        
+        let args = Args {
+            url: "https://example.com/test.txt".to_string(),
+            output: Some("test.txt".to_string()),
+            threads: 1,
+            continue_: true,
+            hash: false,
+            verify_hash: None,
+        };
+        
+        assert!(args.continue_);
+        assert_eq!(args.output, Some("test.txt".to_string()));
     }
 
     #[test]

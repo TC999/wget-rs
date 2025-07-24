@@ -63,4 +63,18 @@ mod tests {
         };
         assert_eq!(args.threads, 32);
     }
+
+    #[test]
+    fn test_continue_flag() {
+        let args = Args {
+            url: "https://example.com/file.txt".to_string(),
+            output: Some("downloaded_file.txt".to_string()),
+            threads: 4,
+            continue_: true,
+            hash: false,
+            verify_hash: None,
+        };
+        assert!(args.continue_);
+        assert_eq!(args.output, Some("downloaded_file.txt".to_string()));
+    }
 }
