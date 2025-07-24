@@ -7,7 +7,12 @@ use download::download_file;
 use hash::{calculate_all_hashes, display_hash_results, verify_and_display};
 
 fn main() {
-    let args = parse_args();
+    let mut args = parse_args();
+
+    // 如果没有协议，自动补全为 https://
+    if !args.url.starts_with("http://") && !args.url.starts_with("https://") {
+        args.url = format!("https://{}", args.url);
+    }
     
     // 执行下载
     if let Err(e) = download_file(&args.url, &args.output, args.threads) {

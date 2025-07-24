@@ -30,7 +30,8 @@ fn validate_response(response: &reqwest::blocking::Response, expected_filename: 
 }
 
 fn create_client() -> Result<Client, Box<dyn std::error::Error>> {
-    let user_agent = format!("Wget/{} ({})", env!("CARGO_PKG_VERSION"), std::env::consts::OS);
+    let pkg_version = option_env!("CARGO_PKG_VERSION").unwrap_or("0.1.0");
+    let user_agent = format!("Wget/{} ({})", pkg_version, std::env::consts::OS);
     Client::builder()
         .user_agent(user_agent)
         .redirect(reqwest::redirect::Policy::limited(10))
