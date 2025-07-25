@@ -32,7 +32,7 @@ jobs:
       - name: 上传编译产物
         uses: actions/upload-artifact@v4
         with:
-          name: wget-rs-windows-${{ matrix.target }}
+          name: wget-rs-${{ matrix.target }}
           path: |
             target/${{ matrix.target }}/release/wget-rs.exe
 
@@ -91,7 +91,7 @@ jobs:
       - name: 上传编译产物
         uses: actions/upload-artifact@v4
         with:
-          name: wget-rs-windows-${{ matrix.target }}
+          name: wget-rs-${{ matrix.target }}
           path: |
             target/${{ matrix.target }}/release/wget-rs
 
@@ -121,6 +121,23 @@ jobs:
       - name: 上传编译产物
         uses: actions/upload-artifact@v4
         with:
-          name: wget-rs-windows-${{ matrix.target }}
+          name: wget-rs-${{ matrix.target }}
           path: |
             target/${{ matrix.target }}/release/wget-rs
+
+  release:
+    runs-on: ubuntu-22.04
+    needs: [build-windows, build-linux, build-linux-arm]
+    steps:
+      - name: 下载编译产物
+        uses: actions/download-artifact@v4
+
+
+      - name: 发布到 GitHub Releases
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v1.0.0
+          files: |
+            target/x86_64-pc-windows-msvc/release/wget-rs.exe
+            target/x86_64-unknown-linux-gnu/release/wget-rs
+            target/aarch64-unknown-linux-gnu/release/wget-rs
