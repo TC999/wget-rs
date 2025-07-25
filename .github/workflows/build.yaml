@@ -148,7 +148,7 @@ jobs:
         if: ${{ inputs.tag == '' }}
         id: get_version
         run: |
-          wget https://raw.githubusercontent.com/${{ github.repository_owner }}/${{ github.repository }}/${{ github.ref }}/Cargo.toml
+          wget https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/Cargo.toml
           tag_name=$(grep '^version' Cargo.toml | head -n1 | awk -F\" '{print $2}')
           echo "::set-output name=tag_name::$tag_name"
 
