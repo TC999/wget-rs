@@ -36,34 +36,34 @@ jobs:
           path: |
             target/${{ matrix.target }}/release/wget-rs.exe
 
-  build-windows-arm:
-    runs-on: windows-11-arm
-    strategy:
-      matrix:
-        target:
-          - aarch64-pc-windows-msvc
-
-    name: Windows-${{ matrix.target }}
-    steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
-
-      - name: 安装 Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          target: ${{ matrix.target }}
-          override: true
-
-      - name: 构建项目
-        run: cargo build --release --target=${{ matrix.target }}
-
-      - name: 上传编译产物
-        uses: actions/upload-artifact@v4
-        with:
-          name: wget-rs-windows-${{ matrix.target }}
-          path: |
-            target/${{ matrix.target }}/release/wget-rs.exe
+  #build-windows-arm:
+  #  runs-on: windows-11-arm
+  #  strategy:
+  #    matrix:
+  #      target:
+  #        - aarch64-pc-windows-msvc
+#
+  #  name: Windows-${{ matrix.target }}
+  #  steps:
+  #    - name: 检出代码
+  #      uses: actions/checkout@v4
+#
+  #    - name: 安装 Rust
+  #      uses: actions-rs/toolchain@v1
+  #      with:
+  #        toolchain: stable
+  #        target: ${{ matrix.target }}
+  #        override: true
+#
+  #    - name: 构建项目
+  #      run: cargo build --release --target=${{ matrix.target }}
+#
+  #    - name: 上传编译产物
+  #      uses: actions/upload-artifact@v4
+  #      with:
+  #        name: wget-rs-windows-${{ matrix.target }}
+  #        path: |
+  #          target/${{ matrix.target }}/release/wget-rs.exe
 
   build-linux:
     runs-on: ubuntu-22.04
