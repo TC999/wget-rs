@@ -141,7 +141,8 @@ jobs:
       - name: 下载编译产物
         uses: actions/download-artifact@v4
         with:
-          path: *.zip
+          path: |
+            *.zip
 
       - name: 获取版本号
         if: ${{ inputs.tag == '' }}
