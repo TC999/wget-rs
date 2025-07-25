@@ -23,7 +23,7 @@ jobs:
       - name: 安装 Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: ${{ matrix.target == 'x86_64-win7-windows-msvc' && 'nightly' || 'stable' }}
           target: ${{ matrix.target }}
           override: true
 
