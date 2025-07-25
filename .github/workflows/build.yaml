@@ -141,8 +141,7 @@ jobs:
       - name: 下载编译产物
         uses: actions/download-artifact@v4
         with:
-          path: |
-            *.zip
+          path: bin
 
       - name: 获取版本号
         if: ${{ inputs.tag == '' }}
@@ -152,9 +151,16 @@ jobs:
           tag_name=$(grep '^version' Cargo.toml | head -n1 | awk -F\" '{print $2}')
           echo "::set-output name=tag_name::$tag_name"
 
+      - name: 重新压缩
+        run: |
+          cd bin
+          wget https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/pack.sh
+          chmod +x pack.sh
+          ./pack.sh
+
       - name: 发行
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.get_version.outputs.tag_name }}
           files: |
-            *.zip
+            *.tar.gz
