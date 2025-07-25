@@ -134,7 +134,7 @@ jobs:
             target/${{ matrix.target }}/release/wget-rs
 
   release:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     if: ${{ inputs.release == 'true' }}
     needs: [build-windows, build-linux, build-linux-arm]
     steps:
