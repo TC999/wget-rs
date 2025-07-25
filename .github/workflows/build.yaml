@@ -13,7 +13,6 @@ jobs:
       matrix:
         target:
           - x86_64-pc-windows-msvc
-          - x86_64-win7-windows-msvc
 
     name: Windows-${{ matrix.target }}
     steps:
