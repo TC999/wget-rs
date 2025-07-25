@@ -156,7 +156,6 @@ jobs:
 
       - name: 重新压缩
         run: |
-          cd bin
           wget https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/pack.sh
           chmod +x pack.sh
           ./pack.sh
