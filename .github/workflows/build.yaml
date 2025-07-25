@@ -135,7 +135,7 @@ jobs:
 
   release:
     runs-on: ubuntu-latest
-    if: ${{ inputs.release == 'true' }}
+    if: ${{ inputs.release }}
     needs: [build-windows, build-linux, build-linux-arm]
     steps:
       - name: 下载编译产物
