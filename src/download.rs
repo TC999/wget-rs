@@ -165,11 +165,24 @@ fn download_single_threaded(
         return Err(format!("Unexpected status code: {}", response.status()).into());
     }
     
-    let pb = ProgressBar::new(total_size);
-    pb.set_style(ProgressStyle::default_bar()
-        .template("{bar:40.cyan/blue} {bytes}/{total_bytes} {percent}% {eta}")
-        .unwrap()
-        .progress_chars("##-"));
+    let pb = if total_size > 0 {
+        let progress = ProgressBar::new(total_size);
+        progress.set_style(ProgressStyle::default_bar()
+            .template("{bar:40.cyan/blue} {bytes}/{total_bytes} {percent}% {eta}")
+            .unwrap()
+            .progress_chars("##-"));
+        progress
+    } else {
+        // For unknown file sizes, use a spinner
+        let progress = ProgressBar::new_spinner();
+        progress.set_style(ProgressStyle::default_spinner()
+            .template("{spinner:.green} {bytes} downloaded... {elapsed}")
+            .unwrap());
+        progress
+    };
+    
+    // Enable steady tick for better responsiveness
+    pb.enable_steady_tick(Duration::from_millis(100));
     
     if let Some(pos) = resume_from {
         pb.set_position(pos);
@@ -264,27 +277,44 @@ pub fn download_file(url: &str, output: &Option<String>, threads: u32, continue_
 
     let final_total_size = if actual_total_size > 0 { actual_total_size } else { total_size };
 
-    // 初始化进度条，并提前显示
-    let pb = Arc::new(Mutex::new(ProgressBar::new(final_total_size)));
+    // If file size is unknown (0), still show progress bar but with unknown total
+    let display_total_size = if final_total_size > 0 { final_total_size } else { 1 };
+
+    // Initialize progress bar early and make it visible immediately
+    let pb = Arc::new(Mutex::new(ProgressBar::new(display_total_size)));
     {
         let pb_guard = pb.lock().unwrap();
         pb_guard.set_style(ProgressStyle::default_bar()
             .template("{bar:40.cyan/blue} {bytes}/{total_bytes} {percent}% {eta}")
             .unwrap()
             .progress_chars("##-"));
-        pb_guard.enable_steady_tick(Duration::from_millis(100)); // 让进度条提前刷新
+        pb_guard.enable_steady_tick(Duration::from_millis(100));
+        // For unknown file sizes, use spinner style
+        if final_total_size == 0 {
+            pb_guard.set_style(ProgressStyle::default_spinner()
+                .template("{spinner:.green} {bytes} downloaded... {elapsed}")
+                .unwrap());
+        }
     }
-    println!("正在准备多线程下载，请稍候...");
 
-    // 如果文件大小未知或服务器不支持范围请求，使用单线程下载
-    // 注意：如果是断点续传，我们已经检查过服务器支持情况了
+    // If file size is unknown or server doesn't support ranges, use single thread
     if final_total_size == 0 || (!supports_range_requests(&headers) && resume_from.is_none()) || threads == 1 {
+        // Clean up the multi-threaded progress bar before switching to single-threaded
+        {
+            let pb_guard = pb.lock().unwrap();
+            pb_guard.finish_and_clear();
+        }
         println!("使用单线程下载...");
         return download_single_threaded(&client, url, &filename, final_total_size, resume_from);
     }
 
-    // 如果是断点续传但要用多线程，需要特殊处理
+    // If resuming, use single-threaded download for safety
     if resume_from.is_some() {
+        // Clean up the multi-threaded progress bar before switching to single-threaded
+        {
+            let pb_guard = pb.lock().unwrap();
+            pb_guard.finish_and_clear();
+        }
         println!("断点续传模式下使用单线程下载...");
         return download_single_threaded(&client, url, &filename, final_total_size, resume_from);
     }
@@ -295,6 +325,11 @@ pub fn download_file(url: &str, output: &Option<String>, threads: u32, continue_
 
     // If chunk size is too small (less than 1 byte per thread), use single thread  
     if chunk_size == 0 {
+        // Clean up the multi-threaded progress bar before switching to single-threaded
+        {
+            let pb_guard = pb.lock().unwrap();
+            pb_guard.finish_and_clear();
+        }
         println!("文件太小，使用单线程下载...");
         return download_single_threaded(&client, url, &filename, final_total_size, resume_from);
     }
@@ -494,5 +529,30 @@ mod tests {
         
         // Test passes if the function compiles and can be referenced
         let _fn_ref = validate_response;
+    }
+
+    #[test]
+    fn test_progress_bar_creation() {
+        // Test that progress bars can be created for different scenarios
+        use indicatif::{ProgressBar, ProgressStyle};
+        
+        // Test progress bar with known size
+        let pb_known = ProgressBar::new(1000);
+        pb_known.set_style(ProgressStyle::default_bar()
+            .template("{bar:40.cyan/blue} {bytes}/{total_bytes} {percent}% {eta}")
+            .unwrap()
+            .progress_chars("##-"));
+        pb_known.enable_steady_tick(Duration::from_millis(100));
+        assert_eq!(pb_known.length().unwrap(), 1000);
+        
+        // Test progress bar for unknown size (spinner)
+        let pb_unknown = ProgressBar::new_spinner();
+        pb_unknown.set_style(ProgressStyle::default_spinner()
+            .template("{spinner:.green} {bytes} downloaded... {elapsed}")
+            .unwrap());
+        pb_unknown.enable_steady_tick(Duration::from_millis(100));
+        
+        // Both progress bars should be created successfully
+        // We can't easily test their actual display without complex mocking
     }
 }
